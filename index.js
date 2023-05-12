@@ -37,8 +37,3 @@ cron.schedule('* * * * * *', async function() {
     console.log('Summary:', summary);
   }
 });
-
-// Example usage
-for (let i = 0; i < 200; i++) {
-  console.log(`This is line number ${i + 1}`);
-}
