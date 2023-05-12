@@ -1,39 +1,61 @@
-const openai = require('openai');
 const cron = require('node-cron');
 const dotenv = require('dotenv');
-dotenv.config();
-let queue = [];
+const {Configuration, OpenAIApi} = require('openai');
 
-// Set OpenAI API Key
-openai.apiKey = process.env.OPENAI_API_KEY;
+dotenv.config();
+let queue = new Array();
+
+let openai;
 
 // Overriding console.log
 const originalConsoleLog = console.log;
-console.log = function (message) {
-  queue.push(message);
 
-  // Call the original console.log function
-  originalConsoleLog.apply(console, arguments);
-};
+const initializeSummary = () => {
+  if(openai){
+    console.log = (message, ...args) => {
+      queue.push(message);
+  
+      originalConsoleLog.apply(console, args);
+    };
+  } else {
+    originalConsoleLog('Please configure the OpenAI API key');
+  }
+}
 
-// Function to summarize text with ChatGPT
-async function summarizeText(text) {
-  const response = await openai.Completion.create({
-    engine: 'text-davinci-002',
-    prompt: `Summarize the following text:\n\n${text}`,
-    max_tokens: 60
-  });
+const summarizeText = async (text) => {
+  try {
+    const response = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [{role: "user", content: `Summarize the following console printout:\n\n${text}`}],
+      temperature: 0,
+      max_tokens: 500,
+    });
 
-  return response.choices[0].text.trim();
+    originalConsoleLog('Summary', response.data.choices[0].message.content)
+  } catch (error) {
+    originalConsoleLog('Error:', error);
+  }
 }
 
 // Schedule a task every second to check the queue
-cron.schedule('* * * * * *', async function() {
-  if (queue.length > 100) {
+cron.schedule('* * * * * *', async () => {
+  if (queue.join('').length > 50) {
     const text = queue.join('\n');
     queue = [];  // Clear the queue
 
     const summary = await summarizeText(text);
-    console.log('Summary:', summary);
+    originalConsoleLog('Summary:', summary);
   }
 });
+
+const config = (apiKey) => {
+  const configuration = new Configuration({
+    apiKey,
+  });
+  openai = new OpenAIApi(configuration);
+}
+
+module.exports = {
+  initializeSummary,
+  config
+};
